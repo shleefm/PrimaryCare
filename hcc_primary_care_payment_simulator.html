@@ -1,0 +1,158 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary)}
+.row{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.ctrl{flex:1;min-width:200px}
+.ctrl label{display:flex;justify-content:space-between;font-size:13px;color:var(--color-text-secondary);margin-bottom:4px}
+.ctrl .val{font-weight:500;color:var(--color-text-primary);font-size:14px}
+.ctrl input[type=range]{width:100%}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:16px 0}
+.card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
+.card .lb{font-size:11px;color:var(--color-text-secondary);margin-bottom:3px;line-height:1.3}
+.card .vl{font-size:20px;font-weight:500}
+.card .sub{font-size:11px;margin-top:2px}
+.pos{color:#0F6E56}.neg{color:#A32D2D}
+.sep{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:20px 0}
+.sec{font-size:15px;font-weight:500;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;padding:2px 8px;border-radius:var(--border-radius-md);font-weight:500}
+.b1{background:#E6F1FB;color:#0C447C}.b2{background:#EAF3DE;color:#27500A}
+.detail{overflow-x:auto;margin:12px 0}
+.detail table{width:100%;border-collapse:collapse;font-size:12px;min-width:500px}
+.detail th{background:var(--color-background-secondary);padding:6px 8px;text-align:center;border:0.5px solid var(--color-border-tertiary);font-weight:500;font-size:11px}
+.detail td{padding:5px 8px;text-align:right;border:0.5px solid var(--color-border-tertiary)}
+.detail td:first-child{text-align:center;font-weight:500;background:var(--color-background-secondary)}
+.hi{background:#FAEEDA;font-weight:500}
+.chart-wrap{position:relative;width:100%;height:280px;margin:12px 0}
+.legend-row{display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--color-text-secondary);flex-wrap:wrap;margin-top:6px}
+.legend-row span{display:flex;align-items:center;gap:3px}
+.sw{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.toggle{display:flex;gap:0;margin-bottom:12px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);overflow:hidden;width:fit-content}
+.toggle button{padding:6px 14px;font-size:12px;font-weight:500;border:none;cursor:pointer;background:var(--color-background-primary);color:var(--color-text-secondary);transition:all .15s;font-family:var(--font-sans)}
+.toggle button.on{background:#378ADD;color:#fff}
+</style>
+
+<div style="padding:0.5rem 0">
+
+<div class="row">
+<div class="ctrl"><label>1군 수가 <span class="val" id="v0">22만원</span></label><input type="range" min="100000" max="500000" step="10000" value="220000" id="s0" oninput="go()"></div>
+<div class="ctrl"><label>2군 수가 <span class="val" id="v1">30만원</span></label><input type="range" min="150000" max="700000" step="10000" value="300000" id="s1" oninput="go()"></div>
+</div>
+<div class="row">
+<div class="ctrl"><label>3군 수가 <span class="val" id="v2">52만원</span></label><input type="range" min="200000" max="1200000" step="10000" value="520000" id="s2" oninput="go()"></div>
+<div class="ctrl"><label>4군 수가 <span class="val" id="v3">74만원</span></label><input type="range" min="300000" max="1500000" step="10000" value="740000" id="s3" oninput="go()"></div>
+</div>
+<div class="row">
+<div class="ctrl"><label>Leakage 변화비율 (LC) <span class="val" id="vlc">-3.0%</span></label><input type="range" min="-10" max="5" step="0.5" value="-3" id="slc" oninput="go()"></div>
+</div>
+
+<div class="cards" id="topCards"></div>
+
+<hr class="sep">
+
+<div class="toggle" id="modeToggle">
+<button class="on" onclick="setMode(0)">의원 수입 비교</button>
+<button onclick="setMode(1)">공단 비용 비교</button>
+<button onclick="setMode(2)">환자군별 상세</button>
+</div>
+
+<div id="chartPanel">
+<div class="chart-wrap"><canvas id="mainChart"></canvas></div>
+<div class="legend-row" id="mainLegend"></div>
+</div>
+<div id="tablePanel" style="display:none">
+<div class="detail" id="detailTable"></div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const GN=['1군(<25th)','2군(25~49th)','3군(50~74th)','4군(≥75th)'];
+const N=[11956,13778,18089,25781];
+const C=[3708639860,5602773370,12146547670,26403984090];
+const M=[750846470,1158490130,2499026390,6021419440];
+const BV=[0.20245871757415668,0.20677083535149307,0.20573964371557107,0.22804965415353726];
+const CA=[18840.24263967882,25224.78146320221,41445.5147879927,70068.10565920638];
+const L_NOW=[0.7975412824258433,0.7932291646485069,0.7942603562844289,0.7719503458464627];
+const AN=[96994,112318,222409,448598];
+const DP=[30494.60,39569.40,43377.60,45436.65];
+const M_TOTAL=M.reduce((a,b)=>a+b,0);
+const C_TOTAL=C.reduce((a,b)=>a+b,0);
+
+let chart=null, mode=0;
+const fm=n=>{const a=Math.abs(n);if(a>=1e8)return (n<0?'-':'')+(n/1e8).toFixed(1)+'억';if(a>=1e4)return (n<0?'-':'')+(n/1e4).toFixed(0)+'만';return Math.round(n).toLocaleString('ko-KR')};
+const fmW=n=>Math.round(n).toLocaleString('ko-KR');
+const pct=(v,b)=>b?((v/b)*100).toFixed(2)+'%':'—';
+
+function setMode(m){mode=m;document.querySelectorAll('#modeToggle button').forEach((b,i)=>b.classList.toggle('on',i===m));
+document.getElementById('chartPanel').style.display=m<2?'block':'none';
+document.getElementById('tablePanel').style.display=m===2?'block':'none';go();}
+
+function go(){
+const P=[+document.getElementById('s0').value,+document.getElementById('s1').value,+document.getElementById('s2').value,+document.getElementById('s3').value];
+const LC=+document.getElementById('slc').value/100;
+for(let i=0;i<4;i++) document.getElementById('v'+i).textContent=fmW(P[i])+'원';
+document.getElementById('vlc').textContent=(LC*100).toFixed(1)+'%';
+
+const ML=[],CI_arr=[],MLL=[],CS_arr=[],CW_arr=[];
+for(let i=0;i<4;i++){
+const r=P[i]*BV[i]+CA[i];
+const ml=r*N[i]; ML.push(ml);
+const cv=C[i]-M[i];
+CI_arr.push(ml+cv);
+const ll=L_NOW[i]+LC;
+const r5=P[i]*(1-ll)+CA[i];
+const mll=r5*N[i]; MLL.push(mll);
+const dll=C[i]*ll;
+CS_arr.push(mll+dll);
+CW_arr.push(DP[i]*AN[i]*(1+LC));
+}
+const ML_T=ML.reduce((a,b)=>a+b,0);
+const CI_T=CI_arr.reduce((a,b)=>a+b,0);
+const MLL_T=MLL.reduce((a,b)=>a+b,0);
+const CS_T=CS_arr.reduce((a,b)=>a+b,0);
+
+const clinicDiff=ML_T-M_TOTAL;
+const clinicDiffLk=MLL_T-M_TOTAL;
+const nhisD=CI_T-C_TOTAL;
+const nhisDLk=CS_T-C_TOTAL;
+
+document.getElementById('topCards').innerHTML=`
+<div class="card"><div class="lb">의원 수입 (현 의료행태)</div><div class="vl">${fm(ML_T)}원</div><div class="sub ${clinicDiff>=0?'pos':'neg'}">현재 대비 ${clinicDiff>=0?'+':''}${fm(clinicDiff)} (${pct(clinicDiff,M_TOTAL)})</div></div>
+<div class="card"><div class="lb">의원 수입 (leakage ${(LC*100).toFixed(1)}% 후)</div><div class="vl">${fm(MLL_T)}원</div><div class="sub ${clinicDiffLk>=0?'pos':'neg'}">현재 대비 ${clinicDiffLk>=0?'+':''}${fm(clinicDiffLk)} (${pct(clinicDiffLk,M_TOTAL)})</div></div>
+<div class="card"><div class="lb">공단 비용 (현 의료행태)</div><div class="vl">${fm(CI_T)}원</div><div class="sub ${nhisD>=0?'neg':'pos'}">현재 대비 ${nhisD>=0?'+':''}${fm(nhisD)} (${pct(nhisD,C_TOTAL)})</div></div>
+<div class="card"><div class="lb">공단 비용 (leakage ${(LC*100).toFixed(1)}% 후)</div><div class="vl">${fm(CS_T)}원</div><div class="sub ${nhisDLk>=0?'neg':'pos'}">현재 대비 ${nhisDLk>=0?'+':''}${fm(nhisDLk)} (${pct(nhisDLk,C_TOTAL)})</div></div>`;
+
+if(mode===2){
+let h='<table><thead><tr><th>환자군</th><th>환자수</th><th>수가(안)</th><th>시범사업의원<br>추정(현행태)</th><th>시범사업의원<br>추정(LC후)</th><th>의원급 추정<br>(현행태)</th><th>의원급 추정<br>(LC후)</th></tr></thead><tbody>';
+for(let i=0;i<4;i++){
+h+=`<tr><td>${GN[i]}</td><td>${fmW(N[i])}</td><td class="hi">${fmW(P[i])}</td><td>${fm(ML[i])}</td><td>${fm(MLL[i])}</td><td>${fm(CI_arr[i])}</td><td>${fm(CS_arr[i])}</td></tr>`;}
+h+=`<tr style="border-top:2px solid var(--color-border-secondary)"><td>전체</td><td>${fmW(N.reduce((a,b)=>a+b,0))}</td><td></td><td class="hi">${fm(ML_T)}</td><td class="hi">${fm(MLL_T)}</td><td class="hi">${fm(CI_T)}</td><td class="hi">${fm(CS_T)}</td></tr>`;
+h+='</tbody></table>';
+document.getElementById('detailTable').innerHTML=h;return;}
+
+const toM=arr=>arr.map(v=>Math.round(v/1e6));
+let datasets,labels=GN,legendItems;
+if(mode===0){
+datasets=[
+{label:'시범사업의원 추정(현 의료행태)',data:toM(ML),backgroundColor:'#85B7EB',borderRadius:3},
+{label:'시범사업의원 추정(leakage 변화 후)',data:toM(MLL),backgroundColor:'#97C459',borderRadius:3},
+{label:'현재 시범사업의원 외래 의료비',data:M.map(v=>Math.round(v/1e6)),backgroundColor:'#D3D1C7',borderRadius:3}
+];
+}else{
+datasets=[
+{label:'의원급 추정(현 의료행태)',data:toM(CI_arr),backgroundColor:'#85B7EB',borderRadius:3},
+{label:'의원급 추정(leakage 변화 후)',data:toM(CS_arr),backgroundColor:'#97C459',borderRadius:3},
+{label:'현재 의원급 외래 의료비',data:C.map(v=>Math.round(v/1e6)),backgroundColor:'#D3D1C7',borderRadius:3}
+];
+}
+if(chart){chart.data.datasets=datasets;chart.update();}
+else{
+chart=new Chart(document.getElementById('mainChart'),{type:'bar',data:{labels,datasets},
+options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toLocaleString('ko-KR')+'백만원'}}},
+scales:{y:{ticks:{callback:v=>(v/100).toFixed(0)+'억'},grid:{color:'rgba(0,0,0,0.06)'}},x:{grid:{display:false}}}}});}
+document.getElementById('mainLegend').innerHTML=datasets.map(d=>`<span><span class="sw" style="background:${d.backgroundColor}"></span>${d.label}</span>`).join('');
+}
+go();
+</script>
